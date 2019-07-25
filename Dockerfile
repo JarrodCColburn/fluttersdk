@@ -23,7 +23,7 @@ ARG FLUTTER_SDK_VERSION="1.7.8+hotfix.4"
 ENV FLUTTER_SDK_URL="https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_v${FLUTTER_SDK_VERSION}-${FLUTTER_SDK_CHANNEL}.tar.xz"
 ENV FLUTTER_ROOT="/opt/flutter"
 ENV FLUTTER_SDK_ARCHIVE="/tmp/flutter.tar.xz"
-ENV PATH="${PATH}:${FLUTTER_HOME}/bin"
+ENV PATH="${PATH}:${FLUTTER_ROOT}/bin"
 
 ENV DART_SDK="${FLUTTER_ROOT}/bin/cache/dart-sdk"
 ENV PUB_CACHE=${FLUTTER_ROOT}/.pub-cache
