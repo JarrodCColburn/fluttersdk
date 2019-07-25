@@ -42,6 +42,7 @@ RUN apt-get update -y \
   ca-certificates \
   gnupg \
   locales \
+  lib32stdc++6 \
   libstdc++6 \
   libglu1-mesa \
   build-essential \
