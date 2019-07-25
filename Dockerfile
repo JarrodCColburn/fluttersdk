@@ -3,127 +3,73 @@
 #
 # This environment passes all Linux Flutter Doctor checks and is sufficient
 # for building Android applications and running Flutter tests.
-#
-# To build iOS applications, a Mac development environment is necessary.
-#
-# This includes applications and sdks that are needed only by the CI system
-# for performing pushes to production, and so this image is quite a bit larger
-# than strictly needed for just building Flutter apps.
+# 
+# Slimmed down image based on flutter docker image used to build docker sdk 
+# and CI (https://github.com/flutter/flutter/blob/master/dev/ci/docker_linux/Dockerfile)
+# minuse unnecessary packages (nodejs, ruby, firebase, etc...) 
 
 FROM debian:stretch
-MAINTAINER Flutter Developers <flutter-dev@googlegroups.com>
 
-RUN apt-get update -y
-RUN apt-get upgrade -y
+ENV LANG en_US.UTF-8
 
+RUN apt-get update -y \
 # Install basics
-RUN apt-get install -y --no-install-recommends \
+  && apt-get install -y --no-install-recommends \
   git \
-  wget \
   curl \
   zip \
   unzip \
   apt-transport-https \
   ca-certificates \
-  gnupg
-
-# Add repo for chrome stable
-RUN wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add -
-RUN echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' | tee /etc/apt/sources.list.d/google-chrome.list
-
-# Add repo for gcloud sdk and install it
-RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | \
-    tee -a /etc/apt/sources.list.d/google-cloud-sdk.list
-
-RUN curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
-    apt-key --keyring /usr/share/keyrings/cloud.google.gpg add -
-
-RUN apt-get update && apt-get install -y google-cloud-sdk && \
-    gcloud config set core/disable_usage_reporting true && \
-    gcloud config set component_manager/disable_update_check true
-
-# Add nodejs repository to apt sources and install it.
-ENV NODEJS_INSTALL="/opt/nodejs_install"
-RUN mkdir -p "${NODEJS_INSTALL}"
-RUN wget -q https://deb.nodesource.com/setup_10.x -O "${NODEJS_INSTALL}/nodejs_install.sh"
-RUN bash "${NODEJS_INSTALL}/nodejs_install.sh"
-
-# Install the rest of the dependencies.
-RUN apt-get install -y --no-install-recommends \
+  gnupg \
   locales \
-  golang \
-  ruby \
-  ruby-dev \
-  nodejs \
-  lib32stdc++6 \
   libstdc++6 \
   libglu1-mesa \
   build-essential \
   default-jdk-headless \
-  google-chrome-stable
+  xz-utils \
+# Clean up image
+  && locale-gen en_US ${LANG} \
+  && dpkg-reconfigure locales \
+  && apt-get autoremove -y \
+  && rm -rf /var/lib/apt/lists/* 
+
+ARG ANDROID_SDK_VERSION="4333796"
+
+ENV ANDROID_SDK_URL="https://dl.google.com/android/repository/sdk-tools-linux-${ANDROID_SDK_VERSION}.zip"
+ENV ANDROID_SDK_ROOT="/opt/android"
+ENV ANDROID_SDK_ARCHIVE="/tmp/android.zip"
+ENV PATH="${PATH}:${ANDROID_SDK_ROOT}/tools/bin:${ANDROID_SDK_ROOT}/platform-tools/bin"
 
 # Install the Android SDK Dependency.
-ENV ANDROID_SDK_URL="https://dl.google.com/android/repository/sdk-tools-linux-4333796.zip"
-ENV ANDROID_TOOLS_ROOT="/opt/android_sdk"
-RUN mkdir -p "${ANDROID_TOOLS_ROOT}"
-RUN mkdir -p ~/.android
-# Silence warning.
-RUN touch ~/.android/repositories.cfg
-ENV ANDROID_SDK_ARCHIVE="${ANDROID_TOOLS_ROOT}/archive"
-RUN wget --progress=dot:giga "${ANDROID_SDK_URL}" -O "${ANDROID_SDK_ARCHIVE}"
-RUN unzip -q -d "${ANDROID_TOOLS_ROOT}" "${ANDROID_SDK_ARCHIVE}"
+# Silence warnings when accepting android licenses.
+RUN curl --output "${ANDROID_SDK_ARCHIVE}" --url "${ANDROID_SDK_URL}" \
+  && unzip -q -d "${ANDROID_SDK_ROOT}" "${ANDROID_SDK_ARCHIVE}" \
+  && yes "y" | "${ANDROID_SDK_ROOT}/tools/bin/sdkmanager" "tools" \
+  "platform-tools" \
+  "extras;android;m2repository" \
+  "extras;google;m2repository" \
+  "patcher;v4" \ 
+  "build-tools;28.0.3" \
+  "platforms;android-28" \
 # Suppressing output of sdkmanager to keep log size down
 # (it prints install progress WAY too often).
-RUN yes "y" | "${ANDROID_TOOLS_ROOT}/tools/bin/sdkmanager" "tools" > /dev/null
-RUN yes "y" | "${ANDROID_TOOLS_ROOT}/tools/bin/sdkmanager" "build-tools;28.0.3" > /dev/null
-RUN yes "y" | "${ANDROID_TOOLS_ROOT}/tools/bin/sdkmanager" "platforms;android-28" > /dev/null
-RUN yes "y" | "${ANDROID_TOOLS_ROOT}/tools/bin/sdkmanager" "platform-tools" > /dev/null
-RUN yes "y" | "${ANDROID_TOOLS_ROOT}/tools/bin/sdkmanager" "extras;android;m2repository" > /dev/null
-RUN yes "y" | "${ANDROID_TOOLS_ROOT}/tools/bin/sdkmanager" "extras;google;m2repository" > /dev/null
-RUN yes "y" | "${ANDROID_TOOLS_ROOT}/tools/bin/sdkmanager" "patcher;v4" > /dev/null
-RUN rm "${ANDROID_SDK_ARCHIVE}"
-ENV PATH="${ANDROID_TOOLS_ROOT}/tools:${PATH}"
-ENV PATH="${ANDROID_TOOLS_ROOT}/tools/bin:${PATH}"
-# Silence warnings when accepting android licenses.
-RUN mkdir -p ~/.android
-RUN touch ~/.android/repositories.cfg
+  > /dev/null 
 
-# Setup gradle
-ENV GRADLE_ROOT="/opt/gradle"
-RUN mkdir -p "${GRADLE_ROOT}"
-ENV GRADLE_ARCHIVE="${GRADLE_ROOT}/gradle.zip"
-ENV GRADLE_URL="http://services.gradle.org/distributions/gradle-4.4-bin.zip"
-RUN wget --progress=dot:giga "$GRADLE_URL" -O "${GRADLE_ARCHIVE}"
-RUN unzip -q -d "${GRADLE_ROOT}" "${GRADLE_ARCHIVE}"
-ENV PATH="$GRADLE_ROOT/bin:$PATH"
+ARG FLUTTER_SDK_CHANNEL="stable"
+ARG FLUTTER_SDK_VERSION="1.7.8+hotfix.4"
 
-# Add npm to path.
-ENV PATH="/usr/bin:${PATH}"
-RUN dpkg-query -L nodejs
-# Install Firebase
-# This is why we need nodejs installed.
-RUN /usr/bin/npm --verbose install -g firebase-tools
-# TODO(dnfield): Remove this once Firebase has a fix upstream for
-# https://github.com/flutter/flutter/issues/34435
-COPY patch_firebase.sh /root/patch_firebase.sh
-RUN /root/patch_firebase.sh
+ENV FLUTTER_SDK_URL="https://storage.googleapis.com/flutter_infra/releases/stable/linux/flutter_linux_v${FLUTTER_SDK_VERSION}-${FLUTTER_SDK_CHANNEL}.tar.xz"
+ENV FLUTTER_ROOT="/opt/flutter"
+ENV FLUTTER_SDK_ARCHIVE="/tmp/flutter.tar.xz"
+ENV PATH="${PATH}:${FLUTTER_HOME}/bin"
 
-# Install dashing
-# This is why we need golang installed.
-RUN mkdir -p /opt/gopath/bin
-ENV GOPATH=/opt/gopath
-ENV PATH="${GOPATH}/bin:${PATH}"
-RUN go get -u github.com/technosophos/dashing
+ENV DART_SDK="${FLUTTER_ROOT}/bin/cache/dart-sdk"
+ENV PUB_CACHE=${FLUTTER_ROOT}/.pub-cache
+ENV PATH="${PATH}:${DART_SDK}/bin:${PUB_CACHE}/bin"
 
-# Set locale to en_US
-RUN locale-gen en_US "en_US.UTF-8" && dpkg-reconfigure locales
-ENV LANG en_US.UTF-8
-
-# Install coveralls and Firebase
-# This is why we need ruby installed.
-# Skip all the documentation (-N) since it's just on CI.
-RUN gem install coveralls -N
-RUN gem install bundler -N
-# Install fastlane which is used on Linux to build and deploy Android
-# builds to the Play Store.
-RUN gem install fastlane -N
+RUN  curl --output "${FLUTTER_SDK_ARCHIVE}" --url "${FLUTTER_SDK_URL}" \
+  && tar --extract --file="${FLUTTER_SDK_ARCHIVE}" --directory=$(dirname ${FLUTTER_ROOT}) \
+  && rm "${FLUTTER_SDK_ARCHIVE}" \
+  && mkdir -p ${PUB_CACHE} \
+  && ${FLUTTER_ROOT}/bin/flutter doctor 
