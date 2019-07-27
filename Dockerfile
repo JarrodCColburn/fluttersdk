@@ -14,7 +14,7 @@ ENV ANDROID_SDK_ROOT="/usr/local/android"
 ENV ANDROID_SDK_ARCHIVE="/tmp/android.zip"
 RUN curl --output "${ANDROID_SDK_ARCHIVE}" --url "${ANDROID_SDK_URL}" \
   && unzip -q -d "${ANDROID_SDK_ROOT}" "${ANDROID_SDK_ARCHIVE}" \
-  rm "${ANDROID_SDK_ROOT}"
+  && ${ANDROID_SDK_ARCHIVE}
 
 # Android SDK
 RUN yes "y" | ${ANDROID_SDK_ROOT}/tools/bin/sdkmanager "tools" \
