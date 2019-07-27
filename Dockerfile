@@ -51,7 +51,6 @@ RUN apt-get update -y \
   locales \
   libstdc++6 \
   lib32stdc++6 \
-  lib64stdc++6 \
   libglu1-mesa \
   build-essential \
 # Clean up image
